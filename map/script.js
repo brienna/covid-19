@@ -9,6 +9,7 @@ window.onload = function() {
 
 	var stateData = getUSData();
 	var coronavirusStateData = getCoronavirusStateData();
+	getReData();
 	console.log(coronavirusStateData);
 
 	/*------------------------------------------------------------------
@@ -65,6 +66,33 @@ window.onload = function() {
 			results[date][state] = obj;
 		}
 		return results;
+	}
+
+	// Formats response, adding Re data to coronavirus state data
+	function formatReResponse(csv) {
+		var lines = csv.split('\n');
+		var headers = lines[0].split(',');
+		for (var i = 1; i < lines.length - 1; i++) {
+			var currentline = lines[i].split(',');
+			var date = currentline[0];
+			
+			// Add to coronavirusStateData
+			for (var j = 1; j < headers.length; j++) {
+				var state = headers[j];
+				if (state in coronavirusStateData[date]) {
+					coronavirusStateData[date][state]['re'] = currentline[j];
+				}
+			}
+		}
+	}
+
+	function getReData() {
+		var url = 'https://raw.githubusercontent.com/briennakh/covid-19/master/map/data/Re.csv';
+		var data;
+		function handleResponse() {
+			formatReResponse(this.response);
+		}
+		doXHR(url, handleResponse);
 	}
 
 	// Get geometries for U.S. states
@@ -142,6 +170,7 @@ window.onload = function() {
 		layer.on({
 			mouseover: function(e) {
 				highlightFeature(e);
+				info.update('Re: ', feature.properties.name, parseFloat(coronavirusStateData["2020-03-25"][feature.properties.name].re).toFixed(2));
 			},
 			mouseout: function(e) {
 				stateLayer.resetStyle(e.target);
@@ -155,7 +184,7 @@ window.onload = function() {
 	stateLayer = L.geoJson(stateData, {
 		style: function(feature) { // Style each feature
 			return {
-				fillColor: getStateColor(coronavirusStateData["2020-03-25"][feature.properties.name].cases),
+				fillColor: getStateColor(coronavirusStateData["2020-03-25"][feature.properties.name].re),
 				weight: 2,
 				opacity: 0.5,
 				color: 'white',
@@ -166,7 +195,29 @@ window.onload = function() {
 		onEachFeature: onEachState
 	}).addTo(map);
 
-	/*
+	/*--------------------------------------------------------
+	-------------- INFO DIV --------------------------------
+	--------------------------------------------------------*/
+
+	var info = L.control();
+
+	info.onAdd = function(map) {
+		this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
+		this.update();
+		return this._div;
+	};
+
+	// update the control based on feature properties passed
+	info.update = function(title, name, data) {
+	    this._div.innerHTML = ((title && name && data) ?
+	        '<h4>' + title + '</h4><b>' + name + '</b><br />' + data 
+	        : 'Hover over or click a state');
+	};
+
+	info.addTo(map);
+
+
+	/* https://github.com/dwilhelm89/LeafletSlider
 	var sliderControl = L.control.sliderControl({position: "topright", layer: stateLayer});
 	$('#slider-timestamp').html(options.markers[ui.value].feature.properties.time.substr(0, 19));
 
